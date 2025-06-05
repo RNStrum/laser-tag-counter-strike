@@ -211,6 +211,15 @@ export const startRound = mutation({
       status: "active",
       roundStartTime: now,
       roundEndTime,
+      // Reset bomb status for new round
+      bombStatus: "not_planted",
+      bombPlantTime: undefined,
+      bombExplodeTime: undefined,
+      bombPlantedBy: undefined,
+      bombDefusedBy: undefined,
+      winner: undefined,
+      winReason: undefined,
+      roundDuration: undefined,
     });
   },
 });
@@ -231,21 +240,40 @@ const checkWinConditions = async (ctx: MutationCtx, gameId: Id<"games">) => {
   let winner: "terrorist" | "counter_terrorist" | "draw" | null = null;
   let winReason = "";
 
-  // Check elimination wins
-  if (aliveTerrorists.length === 0 && aliveCounterTerrorists.length === 0) {
-    winner = "draw";
-    winReason = "Both teams eliminated";
-  } else if (aliveTerrorists.length === 0) {
-    winner = "counter_terrorist";
-    winReason = "All terrorists eliminated";
-  } else if (aliveCounterTerrorists.length === 0) {
+  // Check bomb-related wins first
+  if (game.bombStatus === "exploded") {
     winner = "terrorist";
-    winReason = "All counter-terrorists eliminated";
+    winReason = "Bomb exploded";
+  } else if (game.bombStatus === "defused") {
+    winner = "counter_terrorist";
+    winReason = "Bomb defused";
+  }
+  
+  // Check bomb explosion due to time
+  const now = Date.now();
+  if (game.bombStatus === "planted" && game.bombExplodeTime && now >= game.bombExplodeTime) {
+    winner = "terrorist";
+    winReason = "Bomb exploded";
+    // Update bomb status
+    await ctx.db.patch(gameId, { bombStatus: "exploded" });
   }
 
-  // Check time expiration win
-  const now = Date.now();
-  if (game.roundEndTime && now >= game.roundEndTime) {
+  // If no bomb-related win, check elimination wins
+  if (!winner) {
+    if (aliveTerrorists.length === 0 && aliveCounterTerrorists.length === 0) {
+      winner = "draw";
+      winReason = "Both teams eliminated";
+    } else if (aliveTerrorists.length === 0) {
+      winner = "counter_terrorist";
+      winReason = "All terrorists eliminated";
+    } else if (aliveCounterTerrorists.length === 0) {
+      winner = "terrorist";
+      winReason = "All counter-terrorists eliminated";
+    }
+  }
+
+  // Check time expiration win (only if no bomb-related or elimination win)
+  if (!winner && game.roundEndTime && now >= game.roundEndTime) {
     if (aliveTerrorists.length > 0 && aliveCounterTerrorists.length === 0) {
       winner = "terrorist";
       winReason = "Time expired - terrorists survive";
@@ -332,5 +360,68 @@ export const leaveGame = mutation({
         await ctx.db.patch(game._id, { hostPlayerId: remainingPlayers[0]._id });
       }
     }
+  },
+});
+
+export const plantBomb = mutation({
+  args: { sessionId: v.optional(v.string()) },
+  handler: async (ctx, { sessionId }) => {
+    const player = await getCurrentPlayer(ctx, sessionId);
+    if (!player) throw new ConvexError("Not in a game");
+
+    const game = await ctx.db.get(player.gameId);
+    if (!game) throw new ConvexError("Game not found");
+    if (game.status !== "active") throw new ConvexError("No active round");
+    
+    // Validate player can plant bomb
+    if (player.team !== "terrorist") throw new ConvexError("Only terrorists can plant the bomb");
+    if (!player.isAlive) throw new ConvexError("Dead players cannot plant the bomb");
+    if (game.bombStatus === "planted") throw new ConvexError("Bomb is already planted");
+    if (game.bombStatus === "exploded") throw new ConvexError("Bomb has already exploded");
+    if (game.bombStatus === "defused") throw new ConvexError("Bomb has already been defused");
+
+    const now = Date.now();
+    const bombExplodeTime = now + (game.bombTimeSeconds * 1000);
+
+    await ctx.db.patch(game._id, {
+      bombStatus: "planted",
+      bombPlantTime: now,
+      bombExplodeTime,
+      bombPlantedBy: player._id,
+    });
+
+    // Check win conditions in case this changes anything
+    await checkWinConditions(ctx, game._id);
+  },
+});
+
+export const defuseBomb = mutation({
+  args: { sessionId: v.optional(v.string()) },
+  handler: async (ctx, { sessionId }) => {
+    const player = await getCurrentPlayer(ctx, sessionId);
+    if (!player) throw new ConvexError("Not in a game");
+
+    const game = await ctx.db.get(player.gameId);
+    if (!game) throw new ConvexError("Game not found");
+    if (game.status !== "active") throw new ConvexError("No active round");
+    
+    // Validate player can defuse bomb
+    if (player.team !== "counter_terrorist") throw new ConvexError("Only counter-terrorists can defuse the bomb");
+    if (!player.isAlive) throw new ConvexError("Dead players cannot defuse the bomb");
+    if (game.bombStatus !== "planted") throw new ConvexError("No bomb planted to defuse");
+    
+    // Check if bomb has already exploded
+    const now = Date.now();
+    if (game.bombExplodeTime && now >= game.bombExplodeTime) {
+      throw new ConvexError("Bomb has already exploded");
+    }
+
+    await ctx.db.patch(game._id, {
+      bombStatus: "defused",
+      bombDefusedBy: player._id,
+    });
+
+    // Check win conditions - defusing the bomb should trigger a CT win
+    await checkWinConditions(ctx, game._id);
   },
 });

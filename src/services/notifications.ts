@@ -207,6 +207,60 @@ export class NotificationService {
     this.vibrate(vibrationPattern);
   }
 
+  async showBombPlantedNotification() {
+    const hasPermission = await this.requestPermission();
+    if (!hasPermission) return;
+
+    const vibrationPattern = [200, 100, 200, 100, 200];
+
+    // Try to use service worker for background notifications
+    if (this.serviceWorkerRegistration && navigator.serviceWorker.controller) {
+      try {
+        navigator.serviceWorker.controller.postMessage({
+          type: 'SHOW_NOTIFICATION',
+          title: '💣 Bomb Planted!',
+          body: 'Counter-terrorists must defuse the bomb!',
+          vibrate: vibrationPattern
+        });
+      } catch (error) {
+        console.error('Service worker notification failed, using fallback:', error);
+        await this.showRegularBombNotification('💣 Bomb Planted!', 'Counter-terrorists must defuse the bomb!');
+      }
+    } else {
+      await this.showRegularBombNotification('💣 Bomb Planted!', 'Counter-terrorists must defuse the bomb!');
+    }
+
+    // Always vibrate the device
+    this.vibrate(vibrationPattern);
+  }
+
+  async showBombDefusedNotification() {
+    const hasPermission = await this.requestPermission();
+    if (!hasPermission) return;
+
+    const vibrationPattern = [100, 50, 100, 50, 100];
+
+    // Try to use service worker for background notifications
+    if (this.serviceWorkerRegistration && navigator.serviceWorker.controller) {
+      try {
+        navigator.serviceWorker.controller.postMessage({
+          type: 'SHOW_NOTIFICATION',
+          title: '🛡️ Bomb Defused!',
+          body: 'Counter-terrorists win the round!',
+          vibrate: vibrationPattern
+        });
+      } catch (error) {
+        console.error('Service worker notification failed, using fallback:', error);
+        await this.showRegularBombNotification('🛡️ Bomb Defused!', 'Counter-terrorists win the round!');
+      }
+    } else {
+      await this.showRegularBombNotification('🛡️ Bomb Defused!', 'Counter-terrorists win the round!');
+    }
+
+    // Always vibrate the device
+    this.vibrate(vibrationPattern);
+  }
+
   private async showRegularStartNotification() {
     const notification = new Notification('🎮 Round Started!', {
       body: 'Good luck! Eliminate the enemy team.',
@@ -219,6 +273,28 @@ export class NotificationService {
     setTimeout(() => {
       notification.close();
     }, 3000);
+
+    return notification;
+  }
+
+  private async showRegularBombNotification(title: string, body: string) {
+    const notification = new Notification(title, {
+      body,
+      icon: '/favicon.ico',
+      tag: 'bomb-event',
+      requireInteraction: true,
+    });
+
+    // Handle notification click
+    notification.onclick = () => {
+      window.focus();
+      notification.close();
+    };
+
+    // Auto-close after 8 seconds
+    setTimeout(() => {
+      notification.close();
+    }, 8000);
 
     return notification;
   }

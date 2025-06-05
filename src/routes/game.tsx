@@ -10,7 +10,9 @@ import {
   LogOut,
   Timer,
   Trophy,
-  RotateCcw
+  RotateCcw,
+  Bomb,
+  Shield
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { api } from "../../convex/_generated/api";
@@ -65,14 +67,18 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
   const updateGameSettings = useMutation(api.games.updateGameSettings);
   const leaveGame = useMutation(api.games.leaveGame);
   const checkTimeExpiration = useMutation(api.games.checkTimeExpiration);
+  const plantBomb = useMutation(api.games.plantBomb);
+  const defuseBomb = useMutation(api.games.defuseBomb);
 
   const [showSettings, setShowSettings] = useState(false);
   const [roundTime, setRoundTime] = useState(5);
   const [bombTime, setBombTime] = useState(120);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  const [bombTimeLeft, setBombTimeLeft] = useState<number | null>(null);
   const [showWinModal, setShowWinModal] = useState(false);
   const [hasRequestedNotifications, setHasRequestedNotifications] = useState(false);
   const previousStatus = useRef(gameData.status);
+  const previousBombStatus = useRef(gameData.bombStatus);
 
   const { players, currentPlayer } = gameData;
   const terrorists = players.filter((p: { team: string; isAlive: boolean }) => p.team === "terrorist");
@@ -120,6 +126,24 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
     }
   }, [gameData.status, gameData.winner, gameData.winReason, currentPlayer?.team]);
 
+  // Detect bomb status changes and show notifications
+  useEffect(() => {
+    if (previousBombStatus.current !== gameData.bombStatus) {
+      if (previousBombStatus.current !== "planted" && gameData.bombStatus === "planted") {
+        // Bomb was planted
+        notifications.showBombPlantedNotification();
+        notifications.playSound('start');
+        notifications.vibrate([200, 100, 200, 100, 200]);
+      } else if (previousBombStatus.current === "planted" && gameData.bombStatus === "defused") {
+        // Bomb was defused
+        notifications.showBombDefusedNotification();
+        notifications.playSound('win');
+        notifications.vibrate([100, 50, 100, 50, 100]);
+      }
+      previousBombStatus.current = gameData.bombStatus;
+    }
+  }, [gameData.bombStatus]);
+
   useEffect(() => {
     if (gameData) {
       setRoundTime(gameData.roundTimeMinutes);
@@ -148,6 +172,28 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
       setTimeLeft(null);
     }
   }, [gameData?.status, gameData?.roundEndTime, sessionId, checkTimeExpiration]);
+
+  // Bomb timer countdown
+  useEffect(() => {
+    if (gameData?.status === "active" && gameData.bombStatus === "planted" && gameData.bombExplodeTime) {
+      const updateBombTimer = () => {
+        const now = Date.now();
+        const remaining = Math.max(0, gameData.bombExplodeTime! - now);
+        setBombTimeLeft(remaining);
+        
+        // Check for bomb explosion
+        if (remaining === 0) {
+          checkTimeExpiration({ sessionId });
+        }
+      };
+
+      updateBombTimer();
+      const interval = setInterval(updateBombTimer, 100); // More frequent updates for bomb timer
+      return () => clearInterval(interval);
+    } else {
+      setBombTimeLeft(null);
+    }
+  }, [gameData?.status, gameData?.bombStatus, gameData?.bombExplodeTime, sessionId, checkTimeExpiration]);
 
   const handleMarkDead = async () => {
     try {
@@ -194,6 +240,22 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
       navigate({ to: "/" });
     } catch (error) {
       console.error("Failed to leave game:", error);
+    }
+  };
+
+  const handlePlantBomb = async () => {
+    try {
+      await plantBomb({ sessionId });
+    } catch (error) {
+      console.error("Failed to plant bomb:", error);
+    }
+  };
+
+  const handleDefuseBomb = async () => {
+    try {
+      await defuseBomb({ sessionId });
+    } catch (error) {
+      console.error("Failed to defuse bomb:", error);
     }
   };
 
@@ -249,6 +311,14 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
                   <span className="font-mono text-lg font-bold">
                     {formatTime(timeLeft)}
                   </span>
+                )}
+                {gameData.bombStatus === "planted" && bombTimeLeft !== null && (
+                  <>
+                    <Bomb className="w-5 h-5 text-warning" />
+                    <span className="font-mono text-lg font-bold text-warning">
+                      💣 {formatTime(bombTimeLeft)}
+                    </span>
+                  </>
                 )}
               </>
             ) : gameData.status === "finished" ? (
@@ -397,6 +467,26 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
           >
             <Skull className="w-5 h-5" />
             I'm Dead
+          </button>
+        )}
+
+        {gameData.status === "active" && currentPlayer?.isAlive && currentPlayer?.team === "terrorist" && gameData.bombStatus !== "planted" && gameData.bombStatus !== "exploded" && gameData.bombStatus !== "defused" && (
+          <button 
+            className="btn btn-error btn-lg"
+            onClick={handlePlantBomb}
+          >
+            <Bomb className="w-5 h-5" />
+            Plant Bomb
+          </button>
+        )}
+
+        {gameData.status === "active" && currentPlayer?.isAlive && currentPlayer?.team === "counter_terrorist" && gameData.bombStatus === "planted" && (
+          <button 
+            className="btn btn-info btn-lg"
+            onClick={handleDefuseBomb}
+          >
+            <Shield className="w-5 h-5" />
+            Defuse Bomb
           </button>
         )}
 

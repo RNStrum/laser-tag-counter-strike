@@ -18,6 +18,11 @@ export default defineSchema({
     winner: v.optional(v.union(v.literal("terrorist"), v.literal("counter_terrorist"), v.literal("draw"))),
     winReason: v.optional(v.string()), // "elimination", "time_expired", etc.
     roundDuration: v.optional(v.number()), // actual round duration in ms
+    bombStatus: v.optional(v.union(v.literal("not_planted"), v.literal("planted"), v.literal("defused"), v.literal("exploded"))),
+    bombPlantTime: v.optional(v.number()), // timestamp when bomb was planted
+    bombExplodeTime: v.optional(v.number()), // when bomb will explode
+    bombPlantedBy: v.optional(v.id("players")), // which terrorist planted the bomb
+    bombDefusedBy: v.optional(v.id("players")), // which counter-terrorist defused the bomb
   }),
 
   players: defineTable({
