@@ -76,6 +76,9 @@
 - **🏆 Win Detection**: Automatic round end detection with win conditions
 - **📱 Mobile Notifications**: Push notifications even when phone is locked
 - **🎉 Winner Celebrations**: Winner modal with audio/vibration feedback
+- **📲 Mobile Chrome Fix**: Real-time updates now work properly on mobile
+- **⚙️ Service Worker**: Background notifications for locked phones
+- **📱 PWA Support**: Progressive Web App with manifest for mobile install
 
 ## Fixed Issues
 - ✅ Schema validation error when creating games

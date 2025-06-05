@@ -1,6 +1,7 @@
 // Notification service for mobile push notifications
 export class NotificationService {
   private static instance: NotificationService;
+  private serviceWorkerRegistration: ServiceWorkerRegistration | null = null;
   
   static getInstance(): NotificationService {
     if (!this.instance) {
@@ -8,6 +9,47 @@ export class NotificationService {
     }
     return this.instance;
   }
+
+  async initializeServiceWorker(): Promise<void> {
+    if ('serviceWorker' in navigator) {
+      try {
+        const registration = await navigator.serviceWorker.register('/sw.js');
+        this.serviceWorkerRegistration = registration;
+        console.log('Service Worker registered successfully:', registration);
+
+        // Listen for messages from service worker
+        navigator.serviceWorker.addEventListener('message', this.handleServiceWorkerMessage);
+
+        // Update service worker if needed
+        if (registration.waiting) {
+          registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+        }
+
+        registration.addEventListener('updatefound', () => {
+          const newWorker = registration.installing;
+          if (newWorker) {
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                // New service worker is available
+                newWorker.postMessage({ type: 'SKIP_WAITING' });
+              }
+            });
+          }
+        });
+
+      } catch (error) {
+        console.error('Service Worker registration failed:', error);
+      }
+    }
+  }
+
+  private handleServiceWorkerMessage = (event: MessageEvent) => {
+    if (event.data && event.data.type === 'CHECK_GAME_STATUS') {
+      // Service worker is asking us to check game status
+      // This can be used for background sync
+      console.log('Service worker requesting game status check');
+    }
+  };
 
   async requestPermission(): Promise<boolean> {
     if (!('Notification' in window)) {
@@ -35,12 +77,42 @@ export class NotificationService {
                       winner === 'terrorist' ? '🔥 Terrorists Win!' : 
                       '🛡️ Counter-Terrorists Win!';
 
-    const notification = new Notification(winnerText, {
-      body: reason,
+    const vibrationPattern = winner === 'draw' ? [200, 100, 200] :
+                           [200, 100, 200, 100, 200]; // Victory pattern
+
+    // Try to use service worker for background notifications
+    if (this.serviceWorkerRegistration) {
+      try {
+        if (navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({
+            type: 'SHOW_NOTIFICATION',
+            title: winnerText,
+            body: reason,
+            vibrate: vibrationPattern
+          });
+        } else {
+          // Fallback to regular notification if service worker not ready
+          await this.showRegularNotification(winnerText, reason, vibrationPattern);
+        }
+      } catch (error) {
+        console.error('Service worker notification failed, using fallback:', error);
+        await this.showRegularNotification(winnerText, reason, vibrationPattern);
+      }
+    } else {
+      await this.showRegularNotification(winnerText, reason, vibrationPattern);
+    }
+
+    // Always vibrate the device
+    this.vibrate(vibrationPattern);
+  }
+
+  private async showRegularNotification(title: string, body: string, _vibrationPattern: number[]) {
+    const notification = new Notification(title, {
+      body,
       icon: '/favicon.ico',
       badge: '/favicon.ico',
-      tag: 'round-end', // Replace previous notifications
-      requireInteraction: true, // Keep notification visible
+      tag: 'round-end',
+      requireInteraction: true,
     });
 
     // Handle notification click
@@ -61,6 +133,30 @@ export class NotificationService {
     const hasPermission = await this.requestPermission();
     if (!hasPermission) return;
 
+    const vibrationPattern = [100, 50, 100];
+
+    // Try to use service worker for background notifications
+    if (this.serviceWorkerRegistration && navigator.serviceWorker.controller) {
+      try {
+        navigator.serviceWorker.controller.postMessage({
+          type: 'SHOW_NOTIFICATION',
+          title: '🎮 Round Started!',
+          body: 'Good luck! Eliminate the enemy team.',
+          vibrate: vibrationPattern
+        });
+      } catch (error) {
+        console.error('Service worker notification failed, using fallback:', error);
+        await this.showRegularStartNotification();
+      }
+    } else {
+      await this.showRegularStartNotification();
+    }
+
+    // Always vibrate the device
+    this.vibrate(vibrationPattern);
+  }
+
+  private async showRegularStartNotification() {
     const notification = new Notification('🎮 Round Started!', {
       body: 'Good luck! Eliminate the enemy team.',
       icon: '/favicon.ico',

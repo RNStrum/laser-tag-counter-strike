@@ -1,7 +1,5 @@
-import { convexQuery } from "@convex-dev/react-query";
-import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { 
   Clock, 
   Skull, 
@@ -30,25 +28,28 @@ export const Route = createFileRoute("/game")({
 function GamePage() {
   const [sessionId] = useState(getSessionId());
   const navigate = useNavigate();
-  const gameQueryOptions = convexQuery(api.games.getCurrentGame, { sessionId });
   
-  // Try to load game data
-  let gameData = null;
-  try {
-    const result = useSuspenseQuery(gameQueryOptions);
-    gameData = result.data;
-  } catch {
-    // Not in a game
-  }
+  // Use Convex's useQuery for real-time updates
+  const gameData = useQuery(api.games.getCurrentGame, { sessionId });
 
   // Redirect to home if not in a game
   useEffect(() => {
-    if (!gameData) {
+    if (gameData === null) {
       navigate({ to: "/" });
     }
   }, [gameData, navigate]);
 
-  if (!gameData) {
+  // Show loading while data is being fetched
+  if (gameData === undefined) {
+    return (
+      <div className="text-center">
+        <span className="loading loading-spinner loading-lg"></span>
+        <p>Loading game...</p>
+      </div>
+    );
+  }
+
+  if (gameData === null) {
     return null; // Will redirect
   }
 
@@ -76,14 +77,20 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
   const counterTerrorists = players.filter((p: { team: string; isAlive: boolean }) => p.team === "counter_terrorist");
   const isHost = currentPlayer?.isHost;
 
-  // Request notification permissions when joining game
+  // Initialize service worker and request notification permissions
   useEffect(() => {
-    if (!hasRequestedNotifications && gameData?.status === "lobby") {
-      notifications.requestPermission().then(() => {
+    if (!hasRequestedNotifications) {
+      // Initialize service worker for background notifications
+      notifications.initializeServiceWorker().then(() => {
+        return notifications.requestPermission();
+      }).then(() => {
+        setHasRequestedNotifications(true);
+      }).catch(error => {
+        console.error('Failed to initialize notifications:', error);
         setHasRequestedNotifications(true);
       });
     }
-  }, [gameData?.status, hasRequestedNotifications]);
+  }, [hasRequestedNotifications]);
 
   // Detect round status changes and show notifications
   useEffect(() => {

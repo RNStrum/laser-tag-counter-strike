@@ -1,9 +1,7 @@
-import { convexQuery } from "@convex-dev/react-query";
-import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Authenticated, Unauthenticated } from "convex/react";
 import { Target, Users, Clock, User } from "lucide-react";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { useState, useEffect } from "react";
 import { api } from "../../convex/_generated/api";
 
@@ -23,17 +21,10 @@ export const Route = createFileRoute("/")({
 
 function HomePage() {
   const [sessionId] = useState(getSessionId());
-  const gameQueryOptions = convexQuery(api.games.getCurrentGame, { sessionId });
   const navigate = useNavigate();
 
-  // Try to load game data - may fail if not in a game
-  let gameData = null;
-  try {
-    const result = useSuspenseQuery(gameQueryOptions);
-    gameData = result.data;
-  } catch {
-    // Not in a game or error loading
-  }
+  // Use Convex's useQuery for real-time updates
+  const gameData = useQuery(api.games.getCurrentGame, { sessionId });
 
   // If user is already in a game, redirect to game page
   useEffect(() => {
@@ -41,6 +32,19 @@ function HomePage() {
       navigate({ to: "/game" });
     }
   }, [gameData, navigate]);
+
+  if (gameData === undefined) {
+    // Loading state
+    return (
+      <div className="text-center">
+        <div className="not-prose flex justify-center mb-4">
+          <Target className="w-16 h-16 text-primary" />
+        </div>
+        <span className="loading loading-spinner loading-lg"></span>
+        <p>Loading...</p>
+      </div>
+    );
+  }
 
   if (gameData) {
     return null; // Will redirect

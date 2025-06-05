@@ -1,0 +1,29 @@
+{
+  "name": "Counter-Strike Game Facilitator",
+  "short_name": "CS Game",
+  "description": "Real-life Counter-Strike game facilitator with round timers and team management",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1f2937",
+  "theme_color": "#3b82f6",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ],
+  "categories": ["games", "entertainment", "sports"],
+  "lang": "en-US",
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Join Game",
+      "short_name": "Join",
+      "description": "Join a Counter-Strike game",
+      "url": "/",
+      "icons": []
+    }
+  ]
+}
