@@ -480,6 +480,24 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
           </button>
         )}
 
+        {/* Temporary: Always show bomb buttons for testing */}
+        <button 
+          className="btn btn-error btn-lg"
+          onClick={handlePlantBomb}
+        >
+          <Bomb className="w-5 h-5" />
+          Plant Bomb (TEST)
+        </button>
+
+        <button 
+          className="btn btn-info btn-lg"
+          onClick={handleDefuseBomb}
+        >
+          <Shield className="w-5 h-5" />
+          Defuse Bomb (TEST)
+        </button>
+
+        {/* Original conditional buttons */}
         {gameData.status === "active" && currentPlayer?.isAlive && currentPlayer?.team === "terrorist" && (gameData.bombStatus === "not_planted" || !gameData.bombStatus) && (
           <button 
             className="btn btn-error btn-lg"
