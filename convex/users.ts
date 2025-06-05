@@ -29,6 +29,7 @@ export const ensureUser = mutation({
     const userId = await ctx.db.insert("users", {
       clerkId: identity.subject,
       name: identity.name ?? "Anonymous",
+      isAnonymous: false,
     });
 
     return await ctx.db.get(userId);

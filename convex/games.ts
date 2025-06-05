@@ -1,6 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { query, mutation } from "./_generated/server";
 import { QueryCtx, MutationCtx } from "./_generated/server";
+import { Id } from "./_generated/dataModel";
 
 // Helper function to find current player
 const getCurrentPlayer = async (ctx: QueryCtx | MutationCtx, sessionId?: string) => {
@@ -60,7 +61,7 @@ export const createOrJoinGame = mutation({
   handler: async (ctx, { team, playerName, sessionId }) => {
     const identity = await ctx.auth.getUserIdentity();
     
-    let userId = null;
+    let userId: Id<"users"> | undefined = undefined;
     
     // Handle authenticated users
     if (identity) {
