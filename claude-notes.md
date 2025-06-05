@@ -51,6 +51,7 @@
 ## Commits Made During Session
 - init: document Counter-Strike game facilitator app requirements
 - implement: Counter-Strike game MVP with Convex backend and React UI
+- feat: implement bomb planting and defusing mechanics with timer and notifications
 
 ## Completed Features
 - **Team Selection**: Choose Terrorist/Counter-Terrorist on app open
@@ -58,8 +59,12 @@
 - **Game Settings**: Round time (1-20 min), bomb timer (40s-5min) with sliders
 - **Real-time Game State**: Live player status, team rosters, round timer
 - **Player Actions**: "I'm Dead" button, automatic team status updates
+- **💣 Bomb System**: Terrorists plant bombs, Counter-terrorists defuse them
+- **🎯 Win Conditions**: Elimination, time expiry, bomb explosion/defusal
+- **📱 Push Notifications**: Bomb planted/defused alerts with vibration
+- **⏱️ Bomb Timer**: Real-time countdown with visual display
 - **Responsive Design**: Works on mobile, tablet, and desktop
-- **Authentication**: Clerk integration for user management
+- **Authentication**: Optional - supports both anonymous and authenticated play
 
 ## Technical Implementation
 - **Backend**: Convex with games, players, users tables
@@ -79,6 +84,7 @@
 - **📲 Mobile Chrome Fix**: Real-time updates now work properly on mobile
 - **⚙️ Service Worker**: Background notifications for locked phones
 - **📱 PWA Support**: Progressive Web App with manifest for mobile install
+- **💣 BOMB MECHANICS**: Complete bomb planting and defusing system implemented!
 
 ## Fixed Issues
 - ✅ Schema validation error when creating games

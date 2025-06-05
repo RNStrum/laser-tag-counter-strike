@@ -447,6 +447,16 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
         </div>
       </div>
 
+      {/* Debug Info - Temporary */}
+      <div className="not-prose mb-4 p-2 bg-base-300 rounded text-xs">
+        <div>Game Status: {gameData.status}</div>
+        <div>Current Player Alive: {currentPlayer?.isAlive ? 'Yes' : 'No'}</div>
+        <div>Current Player Team: {currentPlayer?.team}</div>
+        <div>Bomb Status: {gameData.bombStatus || 'undefined'}</div>
+        <div>Should Show Plant Button: {gameData.status === "active" && currentPlayer?.isAlive && currentPlayer?.team === "terrorist" && (gameData.bombStatus === "not_planted" || !gameData.bombStatus) ? 'YES' : 'NO'}</div>
+        <div>Should Show Defuse Button: {gameData.status === "active" && currentPlayer?.isAlive && currentPlayer?.team === "counter_terrorist" && gameData.bombStatus === "planted" ? 'YES' : 'NO'}</div>
+      </div>
+
       {/* Action Buttons */}
       <div className="not-prose flex justify-center gap-4">
         {isHost && (gameData.status === "lobby" || gameData.status === "finished") && (
@@ -470,7 +480,7 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
           </button>
         )}
 
-        {gameData.status === "active" && currentPlayer?.isAlive && currentPlayer?.team === "terrorist" && gameData.bombStatus !== "planted" && gameData.bombStatus !== "exploded" && gameData.bombStatus !== "defused" && (
+        {gameData.status === "active" && currentPlayer?.isAlive && currentPlayer?.team === "terrorist" && (gameData.bombStatus === "not_planted" || !gameData.bombStatus) && (
           <button 
             className="btn btn-error btn-lg"
             onClick={handlePlantBomb}

@@ -118,6 +118,7 @@ export const createOrJoinGame = mutation({
         status: "lobby",
         roundTimeMinutes: 5,
         bombTimeSeconds: 120,
+        bombStatus: "not_planted",
       });
 
       // Create the host player
