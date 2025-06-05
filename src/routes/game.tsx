@@ -10,10 +10,13 @@ import {
   Users, 
   Target,
   LogOut,
-  Timer
+  Timer,
+  Trophy,
+  RotateCcw
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { api } from "../../convex/_generated/api";
+import { notifications } from "../services/notifications";
 
 // Get session ID from localStorage
 const getSessionId = () => {
@@ -58,11 +61,58 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
   const startRound = useMutation(api.games.startRound);
   const updateGameSettings = useMutation(api.games.updateGameSettings);
   const leaveGame = useMutation(api.games.leaveGame);
+  const checkTimeExpiration = useMutation(api.games.checkTimeExpiration);
 
   const [showSettings, setShowSettings] = useState(false);
   const [roundTime, setRoundTime] = useState(5);
   const [bombTime, setBombTime] = useState(120);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  const [showWinModal, setShowWinModal] = useState(false);
+  const [hasRequestedNotifications, setHasRequestedNotifications] = useState(false);
+  const previousStatus = useRef(gameData.status);
+
+  // Request notification permissions when joining game
+  useEffect(() => {
+    if (!hasRequestedNotifications && gameData?.status === "lobby") {
+      notifications.requestPermission().then(() => {
+        setHasRequestedNotifications(true);
+      });
+    }
+  }, [gameData?.status, hasRequestedNotifications]);
+
+  // Detect round status changes and show notifications
+  useEffect(() => {
+    if (previousStatus.current !== gameData.status) {
+      if (previousStatus.current === "lobby" && gameData.status === "active") {
+        // Round started
+        notifications.showRoundStartNotification();
+        notifications.playSound('start');
+        notifications.vibrate([100, 50, 100]);
+      } else if (previousStatus.current === "active" && gameData.status === "finished") {
+        // Round ended
+        if (gameData.winner) {
+          const winnerText = gameData.winner === 'draw' ? 'Draw' : 
+                           gameData.winner === 'terrorist' ? 'Terrorists' : 
+                           'Counter-Terrorists';
+          
+          const teamColors = gameData.winner === 'terrorist' ? 
+            { bg: 'bg-error', text: 'text-error-content' } :
+            gameData.winner === 'counter_terrorist' ? 
+            { bg: 'bg-info', text: 'text-info-content' } :
+            { bg: 'bg-neutral', text: 'text-neutral-content' };
+
+          notifications.showRoundEndNotification(gameData.winner, gameData.winReason || '', teamColors);
+          
+          const isPlayerWinner = gameData.winner === currentPlayer?.team || gameData.winner === 'draw';
+          notifications.playSound(isPlayerWinner ? 'win' : 'lose');
+          notifications.vibrate(isPlayerWinner ? [200, 100, 200, 100, 200] : [500, 200, 500]);
+          
+          setShowWinModal(true);
+        }
+      }
+      previousStatus.current = gameData.status;
+    }
+  }, [gameData.status, gameData.winner, gameData.winReason, currentPlayer?.team]);
 
   useEffect(() => {
     if (gameData) {
@@ -71,13 +121,18 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
     }
   }, [gameData]);
 
-  // Timer countdown
+  // Timer countdown with time expiration check
   useEffect(() => {
     if (gameData?.status === "active" && gameData.roundEndTime) {
       const updateTimer = () => {
         const now = Date.now();
         const remaining = Math.max(0, gameData.roundEndTime! - now);
         setTimeLeft(remaining);
+        
+        // Check for time expiration
+        if (remaining === 0) {
+          checkTimeExpiration({ sessionId });
+        }
       };
 
       updateTimer();
@@ -86,7 +141,7 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
     } else {
       setTimeLeft(null);
     }
-  }, [gameData?.status, gameData?.roundEndTime]);
+  }, [gameData?.status, gameData?.roundEndTime, sessionId, checkTimeExpiration]);
 
   const { players, currentPlayer } = gameData;
   const terrorists = players.filter((p: { team: string; isAlive: boolean }) => p.team === "terrorist");
@@ -104,8 +159,16 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
   const handleStartRound = async () => {
     try {
       await startRound({ sessionId });
+      setShowWinModal(false); // Hide any previous win modal
     } catch (error) {
       console.error("Failed to start round:", error);
+    }
+  };
+
+  const handleNewRound = () => {
+    setShowWinModal(false);
+    if (isHost) {
+      handleStartRound();
     }
   };
 
@@ -166,7 +229,11 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
 
       {/* Game Status */}
       <div className="not-prose mb-6">
-        <div className="alert">
+        <div className={`alert ${
+          gameData.status === "finished" && gameData.winner === "terrorist" ? "alert-error" :
+          gameData.status === "finished" && gameData.winner === "counter_terrorist" ? "alert-info" :
+          gameData.status === "finished" ? "alert-warning" : ""
+        }`}>
           <div className="flex items-center gap-2">
             {gameData.status === "lobby" ? (
               <>
@@ -181,6 +248,19 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
                   <span className="font-mono text-lg font-bold">
                     {formatTime(timeLeft)}
                   </span>
+                )}
+              </>
+            ) : gameData.status === "finished" ? (
+              <>
+                <Trophy className="w-5 h-5" />
+                <span>
+                  {gameData.winner === 'draw' ? 'Round ended in a draw' :
+                   gameData.winner === 'terrorist' ? 'Terrorists won the round' :
+                   gameData.winner === 'counter_terrorist' ? 'Counter-Terrorists won the round' :
+                   'Round finished'}
+                </span>
+                {gameData.winReason && (
+                  <span className="text-sm opacity-75">• {gameData.winReason}</span>
                 )}
               </>
             ) : (
@@ -298,14 +378,14 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
 
       {/* Action Buttons */}
       <div className="not-prose flex justify-center gap-4">
-        {isHost && gameData.status === "lobby" && (
+        {isHost && (gameData.status === "lobby" || gameData.status === "finished") && (
           <button 
             className="btn btn-success btn-lg"
             onClick={handleStartRound}
-            disabled={players.length < 2}
+            disabled={gameData.status === "lobby" && players.length < 2}
           >
             <Play className="w-5 h-5" />
-            Start Round
+            {gameData.status === "finished" ? "Start New Round" : "Start Round"}
           </button>
         )}
 
@@ -318,6 +398,12 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
             I'm Dead
           </button>
         )}
+
+        {gameData.status === "finished" && !isHost && (
+          <div className="text-center text-sm opacity-75">
+            Waiting for host to start new round...
+          </div>
+        )}
       </div>
 
       {/* Game Info */}
@@ -327,6 +413,64 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
           {isHost && gameData.status === "lobby" && " | You are the host"}
         </p>
       </div>
+
+      {/* Winner Modal */}
+      {showWinModal && gameData.status === "finished" && gameData.winner && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="not-prose max-w-md w-full mx-4">
+            <div className={`card ${
+              gameData.winner === 'terrorist' ? 'bg-error text-error-content' :
+              gameData.winner === 'counter_terrorist' ? 'bg-info text-info-content' :
+              'bg-neutral text-neutral-content'
+            }`}>
+              <div className="card-body text-center">
+                <div className="flex justify-center mb-4">
+                  <Trophy className="w-16 h-16" />
+                </div>
+                
+                <h2 className="card-title justify-center text-3xl mb-2">
+                  {gameData.winner === 'draw' ? '🤝 Draw!' :
+                   gameData.winner === 'terrorist' ? '🔥 Terrorists Win!' :
+                   '🛡️ Counter-Terrorists Win!'}
+                </h2>
+                
+                <p className="text-lg mb-4">{gameData.winReason}</p>
+                
+                {gameData.roundDuration && (
+                  <p className="text-sm opacity-75 mb-6">
+                    Round Duration: {Math.floor(gameData.roundDuration / 60000)}:{
+                      String(Math.floor((gameData.roundDuration % 60000) / 1000)).padStart(2, '0')
+                    }
+                  </p>
+                )}
+
+                <div className="card-actions justify-center">
+                  {isHost ? (
+                    <button 
+                      className="btn btn-primary btn-lg"
+                      onClick={handleNewRound}
+                    >
+                      <RotateCcw className="w-5 h-5" />
+                      Start New Round
+                    </button>
+                  ) : (
+                    <p className="text-sm opacity-75">
+                      Waiting for host to start new round...
+                    </p>
+                  )}
+                  
+                  <button 
+                    className="btn btn-ghost"
+                    onClick={() => setShowWinModal(false)}
+                  >
+                    Continue Viewing
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

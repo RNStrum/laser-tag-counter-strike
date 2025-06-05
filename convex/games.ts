@@ -215,6 +215,64 @@ export const startRound = mutation({
   },
 });
 
+// Helper function to check win conditions
+const checkWinConditions = async (ctx: MutationCtx, gameId: Id<"games">) => {
+  const game = await ctx.db.get(gameId);
+  if (!game || game.status !== "active") return;
+
+  const players = await ctx.db
+    .query("players")
+    .withIndex("by_game", (q) => q.eq("gameId", gameId))
+    .collect();
+
+  const aliveTerrorists = players.filter(p => p.team === "terrorist" && p.isAlive);
+  const aliveCounterTerrorists = players.filter(p => p.team === "counter_terrorist" && p.isAlive);
+
+  let winner: "terrorist" | "counter_terrorist" | "draw" | null = null;
+  let winReason = "";
+
+  // Check elimination wins
+  if (aliveTerrorists.length === 0 && aliveCounterTerrorists.length === 0) {
+    winner = "draw";
+    winReason = "Both teams eliminated";
+  } else if (aliveTerrorists.length === 0) {
+    winner = "counter_terrorist";
+    winReason = "All terrorists eliminated";
+  } else if (aliveCounterTerrorists.length === 0) {
+    winner = "terrorist";
+    winReason = "All counter-terrorists eliminated";
+  }
+
+  // Check time expiration win
+  const now = Date.now();
+  if (game.roundEndTime && now >= game.roundEndTime) {
+    if (aliveTerrorists.length > 0 && aliveCounterTerrorists.length === 0) {
+      winner = "terrorist";
+      winReason = "Time expired - terrorists survive";
+    } else if (aliveCounterTerrorists.length > 0 && aliveTerrorists.length === 0) {
+      winner = "counter_terrorist";
+      winReason = "Time expired - counter-terrorists survive";
+    } else if (aliveTerrorists.length > 0 && aliveCounterTerrorists.length > 0) {
+      winner = "draw";
+      winReason = "Time expired - both teams survive";
+    } else {
+      winner = "terrorist";
+      winReason = "Time expired - terrorists win by default";
+    }
+  }
+
+  // End the round if there's a winner
+  if (winner) {
+    const roundDuration = game.roundStartTime ? now - game.roundStartTime : 0;
+    await ctx.db.patch(gameId, {
+      status: "finished",
+      winner,
+      winReason,
+      roundDuration,
+    });
+  }
+};
+
 export const markPlayerDead = mutation({
   args: { sessionId: v.optional(v.string()) },
   handler: async (ctx, { sessionId }) => {
@@ -226,6 +284,23 @@ export const markPlayerDead = mutation({
     if (game.status !== "active") throw new ConvexError("No active round");
 
     await ctx.db.patch(player._id, { isAlive: false });
+    
+    // Check if this death ends the round
+    await checkWinConditions(ctx, game._id);
+  },
+});
+
+// Check for time expiration wins
+export const checkTimeExpiration = mutation({
+  args: { sessionId: v.optional(v.string()) },
+  handler: async (ctx, { sessionId }) => {
+    const player = await getCurrentPlayer(ctx, sessionId);
+    if (!player) throw new ConvexError("Not in a game");
+
+    const game = await ctx.db.get(player.gameId);
+    if (!game) throw new ConvexError("Game not found");
+
+    await checkWinConditions(ctx, game._id);
   },
 });
 

@@ -15,6 +15,9 @@ export default defineSchema({
     bombTimeSeconds: v.number(), // 40-300 seconds
     roundStartTime: v.optional(v.number()), // timestamp when round started
     roundEndTime: v.optional(v.number()), // when round will end
+    winner: v.optional(v.union(v.literal("terrorist"), v.literal("counter_terrorist"), v.literal("draw"))),
+    winReason: v.optional(v.string()), // "elimination", "time_expired", etc.
+    roundDuration: v.optional(v.number()), // actual round duration in ms
   }),
 
   players: defineTable({
