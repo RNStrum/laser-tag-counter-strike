@@ -3,24 +3,50 @@ import { convexQuery } from "@convex-dev/react-query";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Authenticated, Unauthenticated } from "convex/react";
-import { Target, Users, Clock } from "lucide-react";
+import { Target, Users, Clock, User } from "lucide-react";
 import { useMutation } from "convex/react";
+import { useState, useEffect } from "react";
 import { api } from "../../convex/_generated/api";
 
-const gameQueryOptions = convexQuery(api.games.getCurrentGame, {});
+// Generate a session ID for anonymous users
+const getSessionId = () => {
+  let sessionId = localStorage.getItem('cs-session-id');
+  if (!sessionId) {
+    sessionId = crypto.randomUUID();
+    localStorage.setItem('cs-session-id', sessionId);
+  }
+  return sessionId;
+};
 
 export const Route = createFileRoute("/")({
-  loader: async ({ context: { queryClient } }) => {
-    try {
-      await queryClient.ensureQueryData(gameQueryOptions);
-    } catch {
-      // User might not be authenticated or not in a game
-    }
-  },
   component: HomePage,
 });
 
 function HomePage() {
+  const [sessionId] = useState(getSessionId());
+  const gameQueryOptions = convexQuery(api.games.getCurrentGame, { sessionId });
+  const navigate = useNavigate();
+
+  // Try to load game data - may fail if not in a game
+  let gameData = null;
+  try {
+    const result = useSuspenseQuery(gameQueryOptions);
+    gameData = result.data;
+  } catch {
+    // Not in a game or error loading
+  }
+
+  // If user is already in a game, redirect to game page
+  useEffect(() => {
+    if (gameData) {
+      navigate({ to: "/game" });
+    }
+  }, [gameData, navigate]);
+
+  if (gameData) {
+    return null; // Will redirect
+  }
+
   return (
     <div className="text-center">
       <div className="not-prose flex justify-center mb-4">
@@ -29,41 +55,76 @@ function HomePage() {
       <h1>Counter-Strike Game</h1>
       <p className="mb-8">Real-life tactical gameplay facilitator</p>
 
-      <Unauthenticated>
-        <p>Sign in to join or create a game.</p>
-        <div className="not-prose mt-4">
-          <SignInButton mode="modal">
-            <button className="btn btn-primary btn-lg">Get Started</button>
-          </SignInButton>
-        </div>
-      </Unauthenticated>
-
-      <Authenticated>
-        <GameLobby />
-      </Authenticated>
+      <GameLobby sessionId={sessionId} />
     </div>
   );
 }
 
-function GameLobby() {
+function GameLobby({ sessionId }: { sessionId: string }) {
   const navigate = useNavigate();
-  const { data: gameData } = useSuspenseQuery(gameQueryOptions);
   const createOrJoinGame = useMutation(api.games.createOrJoinGame);
-  const ensureUser = useMutation(api.users.ensureUser);
+  const [playerName, setPlayerName] = useState("");
+  const [showNameInput, setShowNameInput] = useState(false);
+  const [selectedTeam, setSelectedTeam] = useState<"terrorist" | "counter_terrorist" | null>(null);
 
-  const handleJoinTeam = async (team: "terrorist" | "counter_terrorist") => {
+  const handleJoinTeam = (team: "terrorist" | "counter_terrorist") => {
+    setSelectedTeam(team);
+    setShowNameInput(true);
+  };
+
+  const handleSubmit = async () => {
+    if (!playerName.trim() || !selectedTeam) return;
+
     try {
-      await ensureUser({});
-      await createOrJoinGame({ team });
+      await createOrJoinGame({ 
+        team: selectedTeam, 
+        playerName: playerName.trim(),
+        sessionId 
+      });
       navigate({ to: "/game" });
     } catch (error) {
       console.error("Failed to join game:", error);
+      alert("Failed to join game. Please try again.");
     }
   };
 
-  if (gameData) {
-    navigate({ to: "/game" });
-    return null;
+  if (showNameInput) {
+    return (
+      <div className="max-w-md mx-auto">
+        <h2 className="mb-6">Enter Your Name</h2>
+        <div className="not-prose space-y-4">
+          <div className="form-control">
+            <label className="label">
+              <span className="label-text">Player Name</span>
+            </label>
+            <input
+              type="text"
+              placeholder="Enter your name"
+              className="input input-bordered"
+              value={playerName}
+              onChange={(e) => setPlayerName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+              autoFocus
+            />
+          </div>
+          <div className="flex gap-2">
+            <button 
+              className="btn btn-ghost flex-1"
+              onClick={() => setShowNameInput(false)}
+            >
+              Back
+            </button>
+            <button 
+              className={`btn flex-1 ${selectedTeam === 'terrorist' ? 'btn-error' : 'btn-info'}`}
+              onClick={handleSubmit}
+              disabled={!playerName.trim()}
+            >
+              Join {selectedTeam === 'terrorist' ? 'Terrorists' : 'Counter-Terrorists'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -104,18 +165,38 @@ function GameLobby() {
         </div>
       </div>
 
-      <div className="mt-8 p-4 bg-base-200 rounded-lg">
-        <div className="flex items-center justify-center gap-2 mb-2">
-          <Clock className="w-5 h-5" />
-          <span className="font-semibold">Game Rules</span>
+      <div className="mt-8 space-y-4">
+        <Unauthenticated>
+          <div className="not-prose">
+            <div className="alert alert-info">
+              <User className="w-5 h-5" />
+              <span>No account needed! Just enter your name and play.</span>
+            </div>
+          </div>
+        </Unauthenticated>
+
+        <Authenticated>
+          <div className="not-prose">
+            <div className="alert alert-success">
+              <User className="w-5 h-5" />
+              <span>Signed in - your progress will be saved!</span>
+            </div>
+          </div>
+        </Authenticated>
+
+        <div className="p-4 bg-base-200 rounded-lg">
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <Clock className="w-5 h-5" />
+            <span className="font-semibold">Game Rules</span>
+          </div>
+          <ul className="text-sm space-y-1 text-left max-w-md mx-auto">
+            <li>• Up to 5v5 players (uneven teams allowed)</li>
+            <li>• First player becomes the host</li>
+            <li>• Host can configure round and bomb timers</li>
+            <li>• Press "I'm Dead" when eliminated</li>
+            <li>• Round ends when time runs out or all players eliminated</li>
+          </ul>
         </div>
-        <ul className="text-sm space-y-1 text-left max-w-md mx-auto">
-          <li>• Up to 5v5 players (uneven teams allowed)</li>
-          <li>• First player becomes the host</li>
-          <li>• Host can configure round and bomb timers</li>
-          <li>• Press "I'm Dead" when eliminated</li>
-          <li>• Round ends when time runs out or all players eliminated</li>
-        </ul>
       </div>
     </div>
   );

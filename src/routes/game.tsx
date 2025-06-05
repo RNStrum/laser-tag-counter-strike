@@ -1,7 +1,6 @@
 import { convexQuery } from "@convex-dev/react-query";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Authenticated, Unauthenticated } from "convex/react";
 import { useMutation } from "convex/react";
 import { 
   Clock, 
@@ -16,34 +15,45 @@ import {
 import { useState, useEffect } from "react";
 import { api } from "../../convex/_generated/api";
 
-const gameQueryOptions = convexQuery(api.games.getCurrentGame, {});
+// Get session ID from localStorage
+const getSessionId = () => {
+  return localStorage.getItem('cs-session-id') || crypto.randomUUID();
+};
 
 export const Route = createFileRoute("/game")({
-  loader: async ({ context: { queryClient } }) => {
-    await queryClient.ensureQueryData(gameQueryOptions);
-  },
   component: GamePage,
 });
 
 function GamePage() {
-  return (
-    <>
-      <Unauthenticated>
-        <div className="text-center">
-          <p>Please sign in to access the game.</p>
-        </div>
-      </Unauthenticated>
+  const [sessionId] = useState(getSessionId());
+  const navigate = useNavigate();
+  const gameQueryOptions = convexQuery(api.games.getCurrentGame, { sessionId });
+  
+  // Try to load game data
+  let gameData = null;
+  try {
+    const result = useSuspenseQuery(gameQueryOptions);
+    gameData = result.data;
+  } catch {
+    // Not in a game
+  }
 
-      <Authenticated>
-        <GameInterface />
-      </Authenticated>
-    </>
-  );
+  // Redirect to home if not in a game
+  useEffect(() => {
+    if (!gameData) {
+      navigate({ to: "/" });
+    }
+  }, [gameData, navigate]);
+
+  if (!gameData) {
+    return null; // Will redirect
+  }
+
+  return <GameInterface gameData={gameData} sessionId={sessionId} />;
 }
 
-function GameInterface() {
+function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: string }) {
   const navigate = useNavigate();
-  const { data: gameData } = useSuspenseQuery(gameQueryOptions);
   const markPlayerDead = useMutation(api.games.markPlayerDead);
   const startRound = useMutation(api.games.startRound);
   const updateGameSettings = useMutation(api.games.updateGameSettings);
@@ -55,18 +65,18 @@ function GameInterface() {
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
 
   useEffect(() => {
-    if (gameData?.game) {
-      setRoundTime(gameData.game.roundTimeMinutes);
-      setBombTime(gameData.game.bombTimeSeconds);
+    if (gameData) {
+      setRoundTime(gameData.roundTimeMinutes);
+      setBombTime(gameData.bombTimeSeconds);
     }
-  }, [gameData?.game]);
+  }, [gameData]);
 
   // Timer countdown
   useEffect(() => {
-    if (gameData?.game?.status === "active" && gameData.game.roundEndTime) {
+    if (gameData?.status === "active" && gameData.roundEndTime) {
       const updateTimer = () => {
         const now = Date.now();
-        const remaining = Math.max(0, gameData.game.roundEndTime! - now);
+        const remaining = Math.max(0, gameData.roundEndTime! - now);
         setTimeLeft(remaining);
       };
 
@@ -76,21 +86,16 @@ function GameInterface() {
     } else {
       setTimeLeft(null);
     }
-  }, [gameData?.game?.status, gameData?.game?.roundEndTime]);
+  }, [gameData?.status, gameData?.roundEndTime]);
 
-  if (!gameData) {
-    navigate({ to: "/" });
-    return null;
-  }
-
-  const { game, players, currentPlayer } = gameData;
-  const terrorists = players.filter(p => p.team === "terrorist");
-  const counterTerrorists = players.filter(p => p.team === "counter_terrorist");
+  const { players, currentPlayer } = gameData;
+  const terrorists = players.filter((p: any) => p.team === "terrorist");
+  const counterTerrorists = players.filter((p: any) => p.team === "counter_terrorist");
   const isHost = currentPlayer?.isHost;
 
   const handleMarkDead = async () => {
     try {
-      await markPlayerDead({});
+      await markPlayerDead({ sessionId });
     } catch (error) {
       console.error("Failed to mark as dead:", error);
     }
@@ -98,7 +103,7 @@ function GameInterface() {
 
   const handleStartRound = async () => {
     try {
-      await startRound({});
+      await startRound({ sessionId });
     } catch (error) {
       console.error("Failed to start round:", error);
     }
@@ -109,6 +114,7 @@ function GameInterface() {
       await updateGameSettings({
         roundTimeMinutes: roundTime,
         bombTimeSeconds: bombTime,
+        sessionId,
       });
       setShowSettings(false);
     } catch (error) {
@@ -118,7 +124,9 @@ function GameInterface() {
 
   const handleLeaveGame = async () => {
     try {
-      await leaveGame({});
+      await leaveGame({ sessionId });
+      // Clear session for fresh start
+      localStorage.removeItem('cs-session-id');
       navigate({ to: "/" });
     } catch (error) {
       console.error("Failed to leave game:", error);
@@ -138,7 +146,7 @@ function GameInterface() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Counter-Strike Game</h1>
         <div className="not-prose flex gap-2">
-          {isHost && game.status === "lobby" && (
+          {isHost && gameData.status === "lobby" && (
             <button 
               className="btn btn-ghost btn-sm"
               onClick={() => setShowSettings(!showSettings)}
@@ -160,12 +168,12 @@ function GameInterface() {
       <div className="not-prose mb-6">
         <div className="alert">
           <div className="flex items-center gap-2">
-            {game.status === "lobby" ? (
+            {gameData.status === "lobby" ? (
               <>
                 <Users className="w-5 h-5" />
                 <span>Waiting in lobby...</span>
               </>
-            ) : game.status === "active" ? (
+            ) : gameData.status === "active" ? (
               <>
                 <Timer className="w-5 h-5" />
                 <span>Round in progress</span>
@@ -251,12 +259,12 @@ function GameInterface() {
               Terrorists ({terrorists.filter(p => p.isAlive).length}/{terrorists.length})
             </h3>
             <div className="space-y-2">
-              {terrorists.map((player) => (
+              {terrorists.map((player: any) => (
                 <div key={player._id} className="flex items-center justify-between">
                   <span className={player.isAlive ? "" : "line-through opacity-50"}>
-                    {player.user?.name}
+                    {player.name}
                     {player.isHost && " (Host)"}
-                    {player.userId === currentPlayer?.userId && " (You)"}
+                    {player._id === currentPlayer?._id && " (You)"}
                   </span>
                   {!player.isAlive && <Skull className="w-4 h-4" />}
                 </div>
@@ -273,12 +281,12 @@ function GameInterface() {
               Counter-Terrorists ({counterTerrorists.filter(p => p.isAlive).length}/{counterTerrorists.length})
             </h3>
             <div className="space-y-2">
-              {counterTerrorists.map((player) => (
+              {counterTerrorists.map((player: any) => (
                 <div key={player._id} className="flex items-center justify-between">
                   <span className={player.isAlive ? "" : "line-through opacity-50"}>
-                    {player.user?.name}
+                    {player.name}
                     {player.isHost && " (Host)"}
-                    {player.userId === currentPlayer?.userId && " (You)"}
+                    {player._id === currentPlayer?._id && " (You)"}
                   </span>
                   {!player.isAlive && <Skull className="w-4 h-4" />}
                 </div>
@@ -290,7 +298,7 @@ function GameInterface() {
 
       {/* Action Buttons */}
       <div className="not-prose flex justify-center gap-4">
-        {isHost && game.status === "lobby" && (
+        {isHost && gameData.status === "lobby" && (
           <button 
             className="btn btn-success btn-lg"
             onClick={handleStartRound}
@@ -301,7 +309,7 @@ function GameInterface() {
           </button>
         )}
 
-        {game.status === "active" && currentPlayer?.isAlive && (
+        {gameData.status === "active" && currentPlayer?.isAlive && (
           <button 
             className="btn btn-warning btn-lg"
             onClick={handleMarkDead}
@@ -315,8 +323,8 @@ function GameInterface() {
       {/* Game Info */}
       <div className="mt-8 p-4 bg-base-200 rounded-lg text-center">
         <p className="text-sm">
-          Round: {game.roundTimeMinutes} min | Bomb: {game.bombTimeSeconds}s
-          {isHost && game.status === "lobby" && " | You are the host"}
+          Round: {gameData.roundTimeMinutes} min | Bomb: {gameData.bombTimeSeconds}s
+          {isHost && gameData.status === "lobby" && " | You are the host"}
         </p>
       </div>
     </div>

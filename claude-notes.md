@@ -67,8 +67,15 @@
 - **Real-time**: Convex queries for live updates
 - **Auth**: Clerk with proper Convex integration
 
+## Recent Updates
+- **Anonymous Play**: Removed authentication requirement - players can join with just a name
+- **Session Management**: Uses localStorage session IDs for anonymous users  
+- **Flexible Auth**: Supports both authenticated (Clerk) and anonymous users
+- **Schema Updates**: Modified database to support optional authentication
+
 ## App Ready For Use
 The Counter-Strike game facilitator is fully functional and ready for real-life gameplay sessions!
+Players can now join immediately without creating accounts - just enter a name and start playing!
 
 ## Important Context
 - This is a template repository being initialized into a new application

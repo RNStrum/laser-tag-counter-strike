@@ -1,19 +1,37 @@
 import { ConvexError, v } from "convex/values";
 import { query, mutation } from "./_generated/server";
-import { getCurrentUser } from "./users";
+import { QueryCtx, MutationCtx } from "./_generated/server";
+
+// Helper function to find current player
+const getCurrentPlayer = async (ctx: QueryCtx | MutationCtx, sessionId?: string) => {
+  const identity = await ctx.auth.getUserIdentity();
+  
+  if (identity) {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+    
+    if (user) {
+      return await ctx.db
+        .query("players")
+        .filter((q) => q.eq(q.field("userId"), user._id))
+        .first();
+    }
+  } else if (sessionId) {
+    return await ctx.db
+      .query("players")
+      .withIndex("by_session_game", (q) => q.eq("sessionId", sessionId))
+      .first();
+  }
+  
+  return null;
+};
 
 export const getCurrentGame = query({
-  args: {},
-  handler: async (ctx) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) return null;
-
-    // Find the user's current game
-    const player = await ctx.db
-      .query("players")
-      .withIndex("by_user_game", (q) => q.eq("userId", user._id))
-      .first();
-
+  args: { sessionId: v.optional(v.string()) },
+  handler: async (ctx, { sessionId }) => {
+    const player = await getCurrentPlayer(ctx, sessionId);
     if (!player) return null;
 
     const game = await ctx.db.get(player.gameId);
@@ -25,17 +43,9 @@ export const getCurrentGame = query({
       .withIndex("by_game", (q) => q.eq("gameId", game._id))
       .collect();
 
-    // Get user info for each player
-    const playersWithUsers = await Promise.all(
-      players.map(async (player) => {
-        const user = await ctx.db.get(player.userId);
-        return { ...player, user };
-      })
-    );
-
     return {
       ...game,
-      players: playersWithUsers,
+      players,
       currentPlayer: player,
     };
   },
@@ -44,19 +54,53 @@ export const getCurrentGame = query({
 export const createOrJoinGame = mutation({
   args: {
     team: v.union(v.literal("terrorist"), v.literal("counter_terrorist")),
+    playerName: v.string(),
+    sessionId: v.optional(v.string()),
   },
-  handler: async (ctx, { team }) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) throw new ConvexError("Must be authenticated");
-
-    // Check if user is already in a game
-    const existingPlayer = await ctx.db
-      .query("players")
-      .withIndex("by_user_game", (q) => q.eq("userId", user._id))
-      .first();
-
-    if (existingPlayer) {
-      throw new ConvexError("Already in a game");
+  handler: async (ctx, { team, playerName, sessionId }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    
+    let userId = null;
+    
+    // Handle authenticated users
+    if (identity) {
+      let user = await ctx.db
+        .query("users")
+        .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+        .unique();
+      
+      if (!user) {
+        // Create authenticated user
+        userId = await ctx.db.insert("users", {
+          clerkId: identity.subject,
+          name: identity.name ?? playerName,
+          isAnonymous: false,
+        });
+      } else {
+        userId = user._id;
+      }
+      
+      // Check if user is already in a game
+      const existingPlayer = await ctx.db
+        .query("players")
+        .filter((q) => q.eq(q.field("userId"), userId))
+        .first();
+      
+      if (existingPlayer) {
+        throw new ConvexError("Already in a game");
+      }
+    } else if (sessionId) {
+      // Check if anonymous user is already in a game
+      const existingPlayer = await ctx.db
+        .query("players")
+        .withIndex("by_session_game", (q) => q.eq("sessionId", sessionId))
+        .first();
+      
+      if (existingPlayer) {
+        throw new ConvexError("Already in a game");
+      }
+    } else {
+      throw new ConvexError("Must provide sessionId for anonymous users");
     }
 
     // Find an existing lobby game or create new one
@@ -68,9 +112,9 @@ export const createOrJoinGame = mutation({
     let isHost = false;
 
     if (!game) {
-      // Create new game with default settings
+      // Create temporary game (will update hostPlayerId after creating player)
       const gameId = await ctx.db.insert("games", {
-        hostId: user._id,
+        hostPlayerId: "temp" as any, // temporary value
         status: "lobby",
         roundTimeMinutes: 5,
         bombTimeSeconds: 120,
@@ -82,13 +126,20 @@ export const createOrJoinGame = mutation({
     if (!game) throw new ConvexError("Failed to create game");
 
     // Add player to game
-    await ctx.db.insert("players", {
+    const playerId = await ctx.db.insert("players", {
       gameId: game._id,
-      userId: user._id,
+      userId,
+      sessionId: identity ? undefined : sessionId,
+      name: playerName,
       team,
       isAlive: true,
       isHost,
     });
+
+    // Update game with correct hostPlayerId if this is a new game
+    if (isHost) {
+      await ctx.db.patch(game._id, { hostPlayerId: playerId });
+    }
 
     return game._id;
   },
@@ -98,11 +149,9 @@ export const updateGameSettings = mutation({
   args: {
     roundTimeMinutes: v.number(),
     bombTimeSeconds: v.number(),
+    sessionId: v.optional(v.string()),
   },
-  handler: async (ctx, { roundTimeMinutes, bombTimeSeconds }) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) throw new ConvexError("Must be authenticated");
-
+  handler: async (ctx, { roundTimeMinutes, bombTimeSeconds, sessionId }) => {
     // Validate ranges
     if (roundTimeMinutes < 1 || roundTimeMinutes > 20) {
       throw new ConvexError("Round time must be between 1-20 minutes");
@@ -111,11 +160,8 @@ export const updateGameSettings = mutation({
       throw new ConvexError("Bomb time must be between 40-300 seconds");
     }
 
-    // Find user's game
-    const player = await ctx.db
-      .query("players")
-      .withIndex("by_user_game", (q) => q.eq("userId", user._id))
-      .first();
+    // Find player's game
+    const player = await getCurrentPlayer(ctx, sessionId);
 
     if (!player) throw new ConvexError("Not in a game");
     if (!player.isHost) throw new ConvexError("Only host can change settings");
@@ -132,17 +178,9 @@ export const updateGameSettings = mutation({
 });
 
 export const startRound = mutation({
-  args: {},
-  handler: async (ctx) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) throw new ConvexError("Must be authenticated");
-
-    // Find user's game
-    const player = await ctx.db
-      .query("players")
-      .withIndex("by_user_game", (q) => q.eq("userId", user._id))
-      .first();
-
+  args: { sessionId: v.optional(v.string()) },
+  handler: async (ctx, { sessionId }) => {
+    const player = await getCurrentPlayer(ctx, sessionId);
     if (!player) throw new ConvexError("Not in a game");
     if (!player.isHost) throw new ConvexError("Only host can start round");
 
@@ -159,8 +197,8 @@ export const startRound = mutation({
       .withIndex("by_game", (q) => q.eq("gameId", game._id))
       .collect();
 
-    for (const player of players) {
-      await ctx.db.patch(player._id, { isAlive: true });
+    for (const gamePlayer of players) {
+      await ctx.db.patch(gamePlayer._id, { isAlive: true });
     }
 
     await ctx.db.patch(game._id, {
@@ -172,16 +210,9 @@ export const startRound = mutation({
 });
 
 export const markPlayerDead = mutation({
-  args: {},
-  handler: async (ctx) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) throw new ConvexError("Must be authenticated");
-
-    const player = await ctx.db
-      .query("players")
-      .withIndex("by_user_game", (q) => q.eq("userId", user._id))
-      .first();
-
+  args: { sessionId: v.optional(v.string()) },
+  handler: async (ctx, { sessionId }) => {
+    const player = await getCurrentPlayer(ctx, sessionId);
     if (!player) throw new ConvexError("Not in a game");
 
     const game = await ctx.db.get(player.gameId);
@@ -193,16 +224,9 @@ export const markPlayerDead = mutation({
 });
 
 export const leaveGame = mutation({
-  args: {},
-  handler: async (ctx) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) throw new ConvexError("Must be authenticated");
-
-    const player = await ctx.db
-      .query("players")
-      .withIndex("by_user_game", (q) => q.eq("userId", user._id))
-      .first();
-
+  args: { sessionId: v.optional(v.string()) },
+  handler: async (ctx, { sessionId }) => {
+    const player = await getCurrentPlayer(ctx, sessionId);
     if (!player) return; // Not in a game
 
     const game = await ctx.db.get(player.gameId);
@@ -224,7 +248,7 @@ export const leaveGame = mutation({
       } else {
         // Make first remaining player the host
         await ctx.db.patch(remainingPlayers[0]._id, { isHost: true });
-        await ctx.db.patch(game._id, { hostId: remainingPlayers[0].userId });
+        await ctx.db.patch(game._id, { hostPlayerId: remainingPlayers[0]._id });
       }
     }
   },
