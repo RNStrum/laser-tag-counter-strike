@@ -1,16 +1,40 @@
 // Service Worker for background notifications
-const CACHE_NAME = 'cs-game-v1';
+const CACHE_NAME = 'cs-game-v2';
 
 // Install event
 self.addEventListener('install', (event) => {
   console.log('Service Worker installing...');
+  // Cache essential resources for offline capability
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll([
+        '/',
+        '/favicon.ico',
+        '/manifest.json'
+      ]);
+    })
+  );
   self.skipWaiting();
 });
 
 // Activate event
 self.addEventListener('activate', (event) => {
   console.log('Service Worker activating...');
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    Promise.all([
+      self.clients.claim(),
+      // Clean up old caches
+      caches.keys().then((cacheNames) => {
+        return Promise.all(
+          cacheNames.map((cacheName) => {
+            if (cacheName !== CACHE_NAME) {
+              return caches.delete(cacheName);
+            }
+          })
+        );
+      })
+    ])
+  );
 });
 
 // Handle background sync
@@ -37,7 +61,6 @@ self.addEventListener('push', (event) => {
     body: data.body || 'Game update available',
     icon: '/favicon.ico',
     badge: '/favicon.ico',
-    vibrate: data.vibrate || [200, 100, 200],
     data: data,
     actions: [
       {
@@ -45,7 +68,11 @@ self.addEventListener('push', (event) => {
         title: 'View Game'
       }
     ],
-    requireInteraction: true
+    requireInteraction: true,
+    silent: false,
+    tag: data.tag || 'cs-game-notification',
+    timestamp: Date.now(),
+    renotify: true
   };
 
   event.waitUntil(

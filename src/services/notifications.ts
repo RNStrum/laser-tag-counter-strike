@@ -62,11 +62,52 @@ export class NotificationService {
     }
 
     if (Notification.permission === 'denied') {
+      console.warn('Notifications are blocked. Please enable them in browser settings.');
       return false;
     }
 
-    const permission = await Notification.requestPermission();
-    return permission === 'granted';
+    try {
+      const permission = await Notification.requestPermission();
+      
+      if (permission === 'granted') {
+        console.log('Notification permission granted');
+        
+        // Test notification to ensure it works
+        await this.showTestNotification();
+        
+        return true;
+      } else {
+        console.warn('Notification permission denied');
+        return false;
+      }
+    } catch (error) {
+      console.error('Error requesting notification permission:', error);
+      return false;
+    }
+  }
+
+  private async showTestNotification() {
+    try {
+      if (this.serviceWorkerRegistration && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: 'SHOW_NOTIFICATION',
+          title: '🎮 Notifications Enabled!',
+          body: 'You\'ll receive game updates even when your phone is locked.',
+          tag: 'test-notification'
+        });
+      } else {
+        const notification = new Notification('🎮 Notifications Enabled!', {
+          body: 'You\'ll receive game updates even when your phone is locked.',
+          icon: '/favicon.ico',
+          tag: 'test-notification',
+          requireInteraction: false,
+        });
+
+        setTimeout(() => notification.close(), 3000);
+      }
+    } catch (error) {
+      console.error('Test notification failed:', error);
+    }
   }
 
   async showRoundEndNotification(winner: string, reason: string, _teamColors: { bg: string; text: string }) {
@@ -80,25 +121,35 @@ export class NotificationService {
     const vibrationPattern = winner === 'draw' ? [200, 100, 200] :
                            [200, 100, 200, 100, 200]; // Victory pattern
 
-    // Try to use service worker for background notifications
+    // Always try service worker first for better background support
+    let notificationShown = false;
+    
     if (this.serviceWorkerRegistration) {
       try {
-        if (navigator.serviceWorker.controller) {
-          navigator.serviceWorker.controller.postMessage({
-            type: 'SHOW_NOTIFICATION',
-            title: winnerText,
-            body: reason,
-            vibrate: vibrationPattern
-          });
-        } else {
-          // Fallback to regular notification if service worker not ready
-          await this.showRegularNotification(winnerText, reason, vibrationPattern);
-        }
+        // Use registration.showNotification for better background support
+        await this.serviceWorkerRegistration.showNotification(winnerText, {
+          body: reason,
+          icon: '/favicon.ico',
+          badge: '/favicon.ico',
+          tag: 'round-end',
+          requireInteraction: true,
+          silent: false,
+          actions: [
+            {
+              action: 'view',
+              title: 'View Game'
+            }
+          ]
+        } as NotificationOptions);
+        notificationShown = true;
+        console.log('Service worker notification sent:', winnerText);
       } catch (error) {
-        console.error('Service worker notification failed, using fallback:', error);
-        await this.showRegularNotification(winnerText, reason, vibrationPattern);
+        console.error('Service worker registration notification failed:', error);
       }
-    } else {
+    }
+
+    // Fallback to regular notification if service worker failed
+    if (!notificationShown) {
       await this.showRegularNotification(winnerText, reason, vibrationPattern);
     }
 

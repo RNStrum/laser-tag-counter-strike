@@ -15,6 +15,8 @@ import {
 import { useState, useEffect, useRef } from "react";
 import { api } from "../../convex/_generated/api";
 import { notifications } from "../services/notifications";
+import { PWAInstallPrompt } from "../components/PWAInstallPrompt";
+import { NotificationDebug } from "../components/NotificationDebug";
 
 // Get session ID from localStorage
 const getSessionId = () => {
@@ -470,6 +472,12 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
           </div>
         </div>
       )}
+
+      {/* PWA Install Prompt */}
+      <PWAInstallPrompt />
+      
+      {/* Notification Debug Tool */}
+      <NotificationDebug />
     </div>
   );
 }
