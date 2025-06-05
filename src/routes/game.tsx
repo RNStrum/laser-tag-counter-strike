@@ -89,8 +89,8 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
   }, [gameData?.status, gameData?.roundEndTime]);
 
   const { players, currentPlayer } = gameData;
-  const terrorists = players.filter((p: any) => p.team === "terrorist");
-  const counterTerrorists = players.filter((p: any) => p.team === "counter_terrorist");
+  const terrorists = players.filter((p: { team: string; isAlive: boolean }) => p.team === "terrorist");
+  const counterTerrorists = players.filter((p: { team: string; isAlive: boolean }) => p.team === "counter_terrorist");
   const isHost = currentPlayer?.isHost;
 
   const handleMarkDead = async () => {
@@ -256,10 +256,10 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
           <div className="card-body">
             <h3 className="card-title justify-center">
               <Target className="w-5 h-5" />
-              Terrorists ({terrorists.filter(p => p.isAlive).length}/{terrorists.length})
+              Terrorists ({terrorists.filter((p: { isAlive: boolean }) => p.isAlive).length}/{terrorists.length})
             </h3>
             <div className="space-y-2">
-              {terrorists.map((player: any) => (
+              {terrorists.map((player: { _id: string; name: string; isAlive: boolean; isHost: boolean }) => (
                 <div key={player._id} className="flex items-center justify-between">
                   <span className={player.isAlive ? "" : "line-through opacity-50"}>
                     {player.name}
@@ -278,10 +278,10 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
           <div className="card-body">
             <h3 className="card-title justify-center">
               <Users className="w-5 h-5" />
-              Counter-Terrorists ({counterTerrorists.filter(p => p.isAlive).length}/{counterTerrorists.length})
+              Counter-Terrorists ({counterTerrorists.filter((p: { isAlive: boolean }) => p.isAlive).length}/{counterTerrorists.length})
             </h3>
             <div className="space-y-2">
-              {counterTerrorists.map((player: any) => (
+              {counterTerrorists.map((player: { _id: string; name: string; isAlive: boolean; isHost: boolean }) => (
                 <div key={player._id} className="flex items-center justify-between">
                   <span className={player.isAlive ? "" : "line-through opacity-50"}>
                     {player.name}

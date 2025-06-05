@@ -110,11 +110,9 @@ export const createOrJoinGame = mutation({
       .filter((q) => q.eq(q.field("status"), "lobby"))
       .first();
 
-    let isHost = false;
     let gameId: Id<"games">;
 
     if (!game) {
-      isHost = true;
       // Create game first without host
       gameId = await ctx.db.insert("games", {
         status: "lobby",
