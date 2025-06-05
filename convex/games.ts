@@ -104,45 +104,52 @@ export const createOrJoinGame = mutation({
       throw new ConvexError("Must provide sessionId for anonymous users");
     }
 
-    // Find an existing lobby game or create new one
+    // Find an existing lobby game
     let game = await ctx.db
       .query("games")
       .filter((q) => q.eq(q.field("status"), "lobby"))
       .first();
 
     let isHost = false;
+    let gameId: Id<"games">;
 
     if (!game) {
-      // Create temporary game (will update hostPlayerId after creating player)
-      const gameId = await ctx.db.insert("games", {
-        hostPlayerId: "temp" as any, // temporary value
+      isHost = true;
+      // Create game first without host
+      gameId = await ctx.db.insert("games", {
         status: "lobby",
         roundTimeMinutes: 5,
         bombTimeSeconds: 120,
       });
-      game = await ctx.db.get(gameId);
-      isHost = true;
+
+      // Create the host player
+      const playerId = await ctx.db.insert("players", {
+        gameId,
+        userId,
+        sessionId: identity ? undefined : sessionId,
+        name: playerName,
+        team,
+        isAlive: true,
+        isHost: true,
+      });
+
+      // Update the game with the host player
+      await ctx.db.patch(gameId, { hostPlayerId: playerId });
+    } else {
+      gameId = game._id;
+      // Add player to existing game
+      await ctx.db.insert("players", {
+        gameId: game._id,
+        userId,
+        sessionId: identity ? undefined : sessionId,
+        name: playerName,
+        team,
+        isAlive: true,
+        isHost: false,
+      });
     }
 
-    if (!game) throw new ConvexError("Failed to create game");
-
-    // Add player to game
-    const playerId = await ctx.db.insert("players", {
-      gameId: game._id,
-      userId,
-      sessionId: identity ? undefined : sessionId,
-      name: playerName,
-      team,
-      isAlive: true,
-      isHost,
-    });
-
-    // Update game with correct hostPlayerId if this is a new game
-    if (isHost) {
-      await ctx.db.patch(game._id, { hostPlayerId: playerId });
-    }
-
-    return game._id;
+    return gameId;
   },
 });
 

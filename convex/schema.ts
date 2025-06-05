@@ -9,7 +9,7 @@ export default defineSchema({
   }).index("by_clerkId", ["clerkId"]),
 
   games: defineTable({
-    hostPlayerId: v.id("players"), // reference to player who is host
+    hostPlayerId: v.optional(v.id("players")), // reference to player who is host
     status: v.union(v.literal("lobby"), v.literal("active"), v.literal("finished")),
     roundTimeMinutes: v.number(), // 1-20 minutes
     bombTimeSeconds: v.number(), // 40-300 seconds
