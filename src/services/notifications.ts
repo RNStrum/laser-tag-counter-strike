@@ -27,7 +27,7 @@ export class NotificationService {
     return permission === 'granted';
   }
 
-  async showRoundEndNotification(winner: string, reason: string, teamColors: { bg: string; text: string }) {
+  async showRoundEndNotification(winner: string, reason: string, _teamColors: { bg: string; text: string }) {
     const hasPermission = await this.requestPermission();
     if (!hasPermission) return;
 
@@ -39,15 +39,8 @@ export class NotificationService {
       body: reason,
       icon: '/favicon.ico',
       badge: '/favicon.ico',
-      vibrate: [200, 100, 200, 100, 200], // Victory vibration pattern
       tag: 'round-end', // Replace previous notifications
       requireInteraction: true, // Keep notification visible
-      actions: [
-        {
-          action: 'view',
-          title: 'View Results'
-        }
-      ]
     });
 
     // Handle notification click
@@ -71,7 +64,6 @@ export class NotificationService {
     const notification = new Notification('🎮 Round Started!', {
       body: 'Good luck! Eliminate the enemy team.',
       icon: '/favicon.ico',
-      vibrate: [100, 50, 100], // Start vibration pattern
       tag: 'round-start',
       requireInteraction: false,
     });

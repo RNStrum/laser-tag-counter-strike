@@ -71,6 +71,11 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
   const [hasRequestedNotifications, setHasRequestedNotifications] = useState(false);
   const previousStatus = useRef(gameData.status);
 
+  const { players, currentPlayer } = gameData;
+  const terrorists = players.filter((p: { team: string; isAlive: boolean }) => p.team === "terrorist");
+  const counterTerrorists = players.filter((p: { team: string; isAlive: boolean }) => p.team === "counter_terrorist");
+  const isHost = currentPlayer?.isHost;
+
   // Request notification permissions when joining game
   useEffect(() => {
     if (!hasRequestedNotifications && gameData?.status === "lobby") {
@@ -91,10 +96,6 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
       } else if (previousStatus.current === "active" && gameData.status === "finished") {
         // Round ended
         if (gameData.winner) {
-          const winnerText = gameData.winner === 'draw' ? 'Draw' : 
-                           gameData.winner === 'terrorist' ? 'Terrorists' : 
-                           'Counter-Terrorists';
-          
           const teamColors = gameData.winner === 'terrorist' ? 
             { bg: 'bg-error', text: 'text-error-content' } :
             gameData.winner === 'counter_terrorist' ? 
@@ -102,10 +103,6 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
             { bg: 'bg-neutral', text: 'text-neutral-content' };
 
           notifications.showRoundEndNotification(gameData.winner, gameData.winReason || '', teamColors);
-          
-          const isPlayerWinner = gameData.winner === currentPlayer?.team || gameData.winner === 'draw';
-          notifications.playSound(isPlayerWinner ? 'win' : 'lose');
-          notifications.vibrate(isPlayerWinner ? [200, 100, 200, 100, 200] : [500, 200, 500]);
           
           setShowWinModal(true);
         }
@@ -142,11 +139,6 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
       setTimeLeft(null);
     }
   }, [gameData?.status, gameData?.roundEndTime, sessionId, checkTimeExpiration]);
-
-  const { players, currentPlayer } = gameData;
-  const terrorists = players.filter((p: { team: string; isAlive: boolean }) => p.team === "terrorist");
-  const counterTerrorists = players.filter((p: { team: string; isAlive: boolean }) => p.team === "counter_terrorist");
-  const isHost = currentPlayer?.isHost;
 
   const handleMarkDead = async () => {
     try {

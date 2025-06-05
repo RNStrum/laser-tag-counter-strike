@@ -73,6 +73,9 @@
 - **Flexible Auth**: Supports both authenticated (Clerk) and anonymous users
 - **Schema Updates**: Modified database to support optional authentication
 - **Bug Fixes**: Resolved game creation validation errors and TypeScript issues
+- **🏆 Win Detection**: Automatic round end detection with win conditions
+- **📱 Mobile Notifications**: Push notifications even when phone is locked
+- **🎉 Winner Celebrations**: Winner modal with audio/vibration feedback
 
 ## Fixed Issues
 - ✅ Schema validation error when creating games
