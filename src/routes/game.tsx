@@ -128,13 +128,21 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
 
   // Detect bomb status changes and show notifications
   useEffect(() => {
+    console.log('Bomb status effect triggered:', {
+      previous: previousBombStatus.current,
+      current: gameData.bombStatus
+    });
+    
     if (previousBombStatus.current !== gameData.bombStatus) {
+      console.log('Bomb status changed!');
       if (previousBombStatus.current !== "planted" && gameData.bombStatus === "planted") {
+        console.log('Bomb was planted - showing notification');
         // Bomb was planted
         notifications.showBombPlantedNotification();
         notifications.playSound('start');
         notifications.vibrate([200, 100, 200, 100, 200]);
       } else if (previousBombStatus.current === "planted" && gameData.bombStatus === "defused") {
+        console.log('Bomb was defused - showing notification');
         // Bomb was defused
         notifications.showBombDefusedNotification();
         notifications.playSound('win');
@@ -447,6 +455,15 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
         </div>
       </div>
 
+
+      {/* Debug Info - Temporary */}
+      <div className="not-prose mb-4 p-2 bg-base-300 rounded text-xs">
+        <div>Game Status: {gameData.status}</div>
+        <div>Current Player Team: {currentPlayer?.team}</div>
+        <div>Current Player Alive: {currentPlayer?.isAlive ? 'Yes' : 'No'}</div>
+        <div>Bomb Status: {gameData.bombStatus || 'undefined'}</div>
+        <div>Should Show Defuse Button: {gameData.status === "active" && currentPlayer?.isAlive && currentPlayer?.team === "counter_terrorist" && gameData.bombStatus === "planted" ? 'YES' : 'NO'}</div>
+      </div>
 
       {/* Action Buttons */}
       <div className="not-prose flex justify-center gap-4">
