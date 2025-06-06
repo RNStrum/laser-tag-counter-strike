@@ -447,15 +447,6 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
         </div>
       </div>
 
-      {/* Debug Info - Temporary */}
-      <div className="not-prose mb-4 p-2 bg-base-300 rounded text-xs">
-        <div>Game Status: {gameData.status}</div>
-        <div>Current Player Alive: {currentPlayer?.isAlive ? 'Yes' : 'No'}</div>
-        <div>Current Player Team: {currentPlayer?.team}</div>
-        <div>Bomb Status: {gameData.bombStatus || 'undefined'}</div>
-        <div>Should Show Plant Button: {gameData.status === "active" && currentPlayer?.isAlive && currentPlayer?.team === "terrorist" && (gameData.bombStatus === "not_planted" || !gameData.bombStatus) ? 'YES' : 'NO'}</div>
-        <div>Should Show Defuse Button: {gameData.status === "active" && currentPlayer?.isAlive && currentPlayer?.team === "counter_terrorist" && gameData.bombStatus === "planted" ? 'YES' : 'NO'}</div>
-      </div>
 
       {/* Action Buttons */}
       <div className="not-prose flex justify-center gap-4">
@@ -480,25 +471,7 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
           </button>
         )}
 
-        {/* Temporary: Always show bomb buttons for testing */}
-        <button 
-          className="btn btn-error btn-lg"
-          onClick={handlePlantBomb}
-        >
-          <Bomb className="w-5 h-5" />
-          Plant Bomb (TEST)
-        </button>
-
-        <button 
-          className="btn btn-info btn-lg"
-          onClick={handleDefuseBomb}
-        >
-          <Shield className="w-5 h-5" />
-          Defuse Bomb (TEST)
-        </button>
-
-        {/* Original conditional buttons */}
-        {gameData.status === "active" && currentPlayer?.isAlive && currentPlayer?.team === "terrorist" && (gameData.bombStatus === "not_planted" || !gameData.bombStatus) && (
+        {gameData.status === "active" && currentPlayer?.isAlive && currentPlayer?.team === "terrorist" && (gameData.bombStatus === "not_planted" || gameData.bombStatus === undefined) && (
           <button 
             className="btn btn-error btn-lg"
             onClick={handlePlantBomb}
