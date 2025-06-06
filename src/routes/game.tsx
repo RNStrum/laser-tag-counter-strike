@@ -456,13 +456,16 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
       </div>
 
 
-      {/* Debug Info - Temporary */}
-      <div className="not-prose mb-4 p-2 bg-base-300 rounded text-xs">
-        <div>Game Status: {gameData.status}</div>
-        <div>Current Player Team: {currentPlayer?.team}</div>
-        <div>Current Player Alive: {currentPlayer?.isAlive ? 'Yes' : 'No'}</div>
-        <div>Bomb Status: {gameData.bombStatus || 'undefined'}</div>
-        <div>Should Show Defuse Button: {gameData.status === "active" && currentPlayer?.isAlive && currentPlayer?.team === "counter_terrorist" && gameData.bombStatus === "planted" ? 'YES' : 'NO'}</div>
+      {/* Debug Info - Temporary - VERY VISIBLE */}
+      <div className="not-prose mb-4 p-4 bg-red-500 text-white rounded border-4 border-yellow-400">
+        <h3 className="font-bold text-lg mb-2">🚨 DEBUG PANEL 🚨</h3>
+        <div className="text-sm space-y-1">
+          <div><strong>Game Status:</strong> {gameData.status}</div>
+          <div><strong>Current Player Team:</strong> {currentPlayer?.team}</div>
+          <div><strong>Current Player Alive:</strong> {currentPlayer?.isAlive ? 'Yes' : 'No'}</div>
+          <div><strong>Bomb Status:</strong> {gameData.bombStatus || 'undefined'}</div>
+          <div><strong>Should Show Defuse Button:</strong> {gameData.status === "active" && currentPlayer?.isAlive && currentPlayer?.team === "counter_terrorist" && gameData.bombStatus === "planted" ? 'YES' : 'NO'}</div>
+        </div>
       </div>
 
       {/* Action Buttons */}
