@@ -65,7 +65,7 @@ export const createOrJoinGame = mutation({
     
     // Handle authenticated users
     if (identity) {
-      let user = await ctx.db
+      const user = await ctx.db
         .query("users")
         .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
         .unique();
@@ -105,7 +105,7 @@ export const createOrJoinGame = mutation({
     }
 
     // Find an existing lobby game
-    let game = await ctx.db
+    const game = await ctx.db
       .query("games")
       .filter((q) => q.eq(q.field("status"), "lobby"))
       .first();
