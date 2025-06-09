@@ -461,3 +461,26 @@ export const defuseBomb = mutation({
   },
 });
 
+export const kickPlayer = mutation({
+  args: { 
+    sessionId: v.optional(v.string()),
+    playerIdToKick: v.id("players")
+  },
+  handler: async (ctx, { sessionId, playerIdToKick }) => {
+    const currentPlayer = await getCurrentPlayer(ctx, sessionId);
+    if (!currentPlayer) throw new ConvexError("Not in a game");
+    if (!currentPlayer.isHost) throw new ConvexError("Only host can kick players");
+
+    const game = await ctx.db.get(currentPlayer.gameId);
+    if (!game) throw new ConvexError("Game not found");
+
+    const playerToKick = await ctx.db.get(playerIdToKick);
+    if (!playerToKick) throw new ConvexError("Player not found");
+    if (playerToKick.gameId !== game._id) throw new ConvexError("Player not in this game");
+    if (playerToKick.isHost) throw new ConvexError("Cannot kick the host");
+
+    // Remove the player
+    await ctx.db.delete(playerIdToKick);
+  },
+});
+

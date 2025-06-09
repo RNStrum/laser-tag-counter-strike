@@ -12,7 +12,8 @@ import {
   Trophy,
   RotateCcw,
   Bomb,
-  Shield
+  Shield,
+  X
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { api } from "../../convex/_generated/api";
@@ -69,6 +70,7 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
   const checkTimeExpiration = useMutation(api.games.checkTimeExpiration);
   const plantBomb = useMutation(api.games.plantBomb);
   const defuseBomb = useMutation(api.games.defuseBomb);
+  const kickPlayer = useMutation(api.games.kickPlayer);
 
   const [showSettings, setShowSettings] = useState(false);
   const [roundTime, setRoundTime] = useState(5);
@@ -259,6 +261,14 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
     }
   };
 
+  const handleKickPlayer = async (playerIdToKick: string) => {
+    try {
+      await kickPlayer({ sessionId, playerIdToKick });
+    } catch (error) {
+      console.error("Failed to kick player:", error);
+    }
+  };
+
   const formatTime = (ms: number) => {
     const totalSeconds = Math.ceil(ms / 1000);
     const minutes = Math.floor(totalSeconds / 60);
@@ -417,7 +427,18 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
                     {player.isHost && " (Host)"}
                     {player._id === currentPlayer?._id && " (You)"}
                   </span>
-                  {!player.isAlive && <Skull className="w-4 h-4" />}
+                  <div className="flex items-center gap-1">
+                    {!player.isAlive && <Skull className="w-4 h-4" />}
+                    {isHost && player._id !== currentPlayer?._id && !player.isHost && (
+                      <button 
+                        className="btn btn-ghost btn-xs text-error hover:bg-error hover:text-error-content"
+                        onClick={() => handleKickPlayer(player._id)}
+                        title="Kick player"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -439,7 +460,18 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
                     {player.isHost && " (Host)"}
                     {player._id === currentPlayer?._id && " (You)"}
                   </span>
-                  {!player.isAlive && <Skull className="w-4 h-4" />}
+                  <div className="flex items-center gap-1">
+                    {!player.isAlive && <Skull className="w-4 h-4" />}
+                    {isHost && player._id !== currentPlayer?._id && !player.isHost && (
+                      <button 
+                        className="btn btn-ghost btn-xs text-error hover:bg-error hover:text-error-content"
+                        onClick={() => handleKickPlayer(player._id)}
+                        title="Kick player"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

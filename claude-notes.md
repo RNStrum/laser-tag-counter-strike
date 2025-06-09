@@ -103,7 +103,7 @@ The Counter-Strike game facilitator is fully functional with ALL features implem
 ### Complete Feature Set:
 ✅ **Anonymous Play** - No accounts needed, just enter name and play
 ✅ **Team Selection** - Choose Terrorist or Counter-Terrorist
-✅ **Host Controls** - First player becomes host with game settings
+✅ **Host Controls** - "Nate Strum" is always host with game settings and kick player ability
 ✅ **Real-time Gameplay** - Live player status and round timers
 ✅ **💣 BOMB MECHANICS** - Complete plant/defuse system with countdown
 ✅ **🏆 Win Conditions** - Elimination, time expiry, bomb explosion/defusal
@@ -115,11 +115,12 @@ The Counter-Strike game facilitator is fully functional with ALL features implem
 1. Players join at the URL and enter their names
 2. Select Terrorist or Counter-Terrorist team
 3. **"Nate Strum" is always the host** (takes over host role when joining)
-4. Host configures round time (1-20 min) and bomb timer (40s-5min)
-5. Host starts round with minimum 2 players
-6. Terrorists can plant bombs, Counter-terrorists can defuse them
-7. Win by elimination, time expiry, or bomb explosion/defusal
-8. Round ends automatically with winner celebration and notifications
+4. Host configures round time (1-20 min) and bomb timer (40s-5min)  
+5. **Host can kick unwanted players** using X button next to player names
+6. Host starts round with minimum 2 players
+7. Terrorists can plant bombs, Counter-terrorists can defuse them
+8. Win by elimination, time expiry, or bomb explosion/defusal
+9. Round ends automatically with winner celebration and notifications
 
 **Ready for real-life tactical gameplay sessions!**
 
