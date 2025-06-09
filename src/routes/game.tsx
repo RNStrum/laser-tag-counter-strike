@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { api } from "../../convex/_generated/api";
+import { Id } from "../../convex/_generated/dataModel";
 import { notifications } from "../services/notifications";
 import { PWAInstallPrompt } from "../components/PWAInstallPrompt";
 import { NotificationDebug } from "../components/NotificationDebug";
@@ -261,7 +262,7 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
     }
   };
 
-  const handleKickPlayer = async (playerIdToKick: string) => {
+  const handleKickPlayer = async (playerIdToKick: Id<"players">) => {
     try {
       await kickPlayer({ sessionId, playerIdToKick });
     } catch (error) {
@@ -432,7 +433,7 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
                     {isHost && player._id !== currentPlayer?._id && !player.isHost && (
                       <button 
                         className="btn btn-ghost btn-xs text-error hover:bg-error hover:text-error-content"
-                        onClick={() => handleKickPlayer(player._id)}
+                        onClick={() => handleKickPlayer(player._id as Id<"players">)}
                         title="Kick player"
                       >
                         <X className="w-3 h-3" />
@@ -465,7 +466,7 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
                     {isHost && player._id !== currentPlayer?._id && !player.isHost && (
                       <button 
                         className="btn btn-ghost btn-xs text-error hover:bg-error hover:text-error-content"
-                        onClick={() => handleKickPlayer(player._id)}
+                        onClick={() => handleKickPlayer(player._id as Id<"players">)}
                         title="Kick player"
                       >
                         <X className="w-3 h-3" />
