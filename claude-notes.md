@@ -114,11 +114,12 @@ The Counter-Strike game facilitator is fully functional with ALL features implem
 ### How to Play:
 1. Players join at the URL and enter their names
 2. Select Terrorist or Counter-Terrorist team
-3. Host configures round time (1-20 min) and bomb timer (40s-5min)
-4. Host starts round with minimum 2 players
-5. Terrorists can plant bombs, Counter-terrorists can defuse them
-6. Win by elimination, time expiry, or bomb explosion/defusal
-7. Round ends automatically with winner celebration and notifications
+3. **"Nate Strum" is always the host** (takes over host role when joining)
+4. Host configures round time (1-20 min) and bomb timer (40s-5min)
+5. Host starts round with minimum 2 players
+6. Terrorists can plant bombs, Counter-terrorists can defuse them
+7. Win by elimination, time expiry, or bomb explosion/defusal
+8. Round ends automatically with winner celebration and notifications
 
 **Ready for real-life tactical gameplay sessions!**
 

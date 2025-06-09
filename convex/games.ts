@@ -112,6 +112,8 @@ export const createOrJoinGame = mutation({
 
     let gameId: Id<"games">;
 
+    const isNateStrum = playerName === "Nate Strum";
+
     if (!game) {
       // Create game first without host
       gameId = await ctx.db.insert("games", {
@@ -121,7 +123,7 @@ export const createOrJoinGame = mutation({
         bombStatus: "not_planted",
       });
 
-      // Create the host player
+      // Create the player (host if first player OR if Nate Strum)
       const playerId = await ctx.db.insert("players", {
         gameId,
         userId,
@@ -129,23 +131,52 @@ export const createOrJoinGame = mutation({
         name: playerName,
         team,
         isAlive: true,
-        isHost: true,
+        isHost: true, // First player is always host initially
       });
 
       // Update the game with the host player
       await ctx.db.patch(gameId, { hostPlayerId: playerId });
     } else {
       gameId = game._id;
-      // Add player to existing game
-      await ctx.db.insert("players", {
-        gameId: game._id,
-        userId,
-        sessionId: identity ? undefined : sessionId,
-        name: playerName,
-        team,
-        isAlive: true,
-        isHost: false,
-      });
+      
+      // Check if Nate Strum is joining an existing game
+      if (isNateStrum) {
+        // Nate Strum takes over as host
+        const existingPlayers = await ctx.db
+          .query("players")
+          .withIndex("by_game", (q) => q.eq("gameId", game._id))
+          .collect();
+        
+        // Remove host status from all existing players
+        for (const existingPlayer of existingPlayers) {
+          await ctx.db.patch(existingPlayer._id, { isHost: false });
+        }
+        
+        // Add Nate Strum as the new host
+        const playerId = await ctx.db.insert("players", {
+          gameId: game._id,
+          userId,
+          sessionId: identity ? undefined : sessionId,
+          name: playerName,
+          team,
+          isAlive: true,
+          isHost: true,
+        });
+        
+        // Update game to point to new host
+        await ctx.db.patch(game._id, { hostPlayerId: playerId });
+      } else {
+        // Regular player joining existing game
+        await ctx.db.insert("players", {
+          gameId: game._id,
+          userId,
+          sessionId: identity ? undefined : sessionId,
+          name: playerName,
+          team,
+          isAlive: true,
+          isHost: false,
+        });
+      }
     }
 
     return gameId;
@@ -356,9 +387,12 @@ export const leaveGame = mutation({
         // Delete empty game
         await ctx.db.delete(game._id);
       } else {
-        // Make first remaining player the host
-        await ctx.db.patch(remainingPlayers[0]._id, { isHost: true });
-        await ctx.db.patch(game._id, { hostPlayerId: remainingPlayers[0]._id });
+        // Look for "Nate Strum" among remaining players, otherwise use first player
+        const nateStrum = remainingPlayers.find(p => p.name === "Nate Strum");
+        const newHost = nateStrum || remainingPlayers[0];
+        
+        await ctx.db.patch(newHost._id, { isHost: true });
+        await ctx.db.patch(game._id, { hostPlayerId: newHost._id });
       }
     }
   },
