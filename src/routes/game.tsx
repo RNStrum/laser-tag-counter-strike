@@ -262,6 +262,7 @@ function GameInterface({ gameData, sessionId }: { gameData: any, sessionId: stri
     }
   };
 
+  // Host can kick players by ID
   const handleKickPlayer = async (playerIdToKick: Id<"players">) => {
     try {
       await kickPlayer({ sessionId, playerIdToKick });
